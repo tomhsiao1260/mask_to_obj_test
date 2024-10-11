@@ -1,0 +1,8 @@
+numpy
+open3d
+pynrrd
+tifffile
+opencv-python
+scikit-image
+networkx
+scipy
