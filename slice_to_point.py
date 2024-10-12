@@ -1,5 +1,4 @@
 import nrrd
-import open3d
 import tifffile
 import argparse
 import numpy as np
@@ -35,7 +34,7 @@ def find_distance(path_coords):
     return distances
 
 # select points (interp via distant)
-def find_points(path_coords, ditances, interval):
+def find_points(path_coords, distances, interval):
     total_length = distances[-1]
     num_points = int(total_length // interval) + 1
 
@@ -62,12 +61,38 @@ def find_points(path_coords, ditances, interval):
 
     return selected_points
 
+def process_slice_to_point(skeleton_image, interval, prev_start=None, prev_end=None):
+    # find endpoints & shortest path
+    endpoints, G = find_endpoints(skeleton_image)
+
+    if (prev_start is None):
+        start, end = endpoints[0], endpoints[1]
+    else:
+        # need to check start, end order
+        (xs, ys), (xe, ye), (xps, yps) = endpoints[0], endpoints[1], prev_start
+        p = (xs - xps) ** 2 + (ys - yps) ** 2
+        q = (xe - xps) ** 2 + (ye - yps) ** 2
+        if (p < q): start, end = endpoints[0], endpoints[1]
+        if (p > q): end, start = endpoints[0], endpoints[1]
+    # print(f"Start (y, x): {start}, End (y, x): {end}")
+
+    path = nx.shortest_path(G, source=start, target=end)
+    path_coords = [(x, y) for y, x in path]
+
+    distances = find_distance(path_coords)
+    total_length = distances[-1]
+    # print(f"Total distance: {total_length}")
+
+    selected_points = find_points(path_coords, distances, interval)
+    # print("Selected Points:")
+    # for point in selected_points: print(point)
+    return selected_points, start, end
 
 # python slice_to_point.py --plot
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Extract a series of points in a sliced mask (equal distance along the mask path).')
     parser.add_argument('--plot', action='store_true', help='Plot the result')
-    parser.add_argument('--d', type=int, default=10, help='Interval between each points')
+    parser.add_argument('--d', type=int, default=10, help='Interval between each points or layers')
     args = parser.parse_args()
 
     # load mask
@@ -81,26 +106,11 @@ if __name__ == '__main__':
 
     # skeletonize
     mask = skeletonize(image)
-    skeleton = np.zeros_like(image)
-    skeleton[mask] = 255
-    tifffile.imwrite('skeleton.tif', skeleton)
+    skeleton_image = np.zeros_like(image)
+    skeleton_image[mask] = 255
+    tifffile.imwrite('skeleton.tif', skeleton_image)
 
-    # find endpoints & shortest path
-    endpoints, G = find_endpoints(skeleton)
-    start, end = endpoints[0], endpoints[1]
-    print(f"Start (y, x): {start}, End (y, x): {end}")
-
-    path = nx.shortest_path(G, source=start, target=end)
-    path_coords = [(x, y) for y, x in path]
-
-    distances = find_distance(path_coords)
-    total_length = distances[-1]
-    print(f"Total distance: {total_length}")
-
-    interval = args.d
-    selected_points = find_points(path_coords, distances, interval)
-    # print("Selected Points:")
-    # for point in selected_points: print(point)
+    selected_points = process_slice_to_point(skeleton_image, args.d)
 
     if (args.plot):
         plt.figure(figsize=(8, 8))

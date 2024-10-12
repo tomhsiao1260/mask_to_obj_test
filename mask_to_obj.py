@@ -1,0 +1,119 @@
+import nrrd
+import open3d
+import tifffile
+import argparse
+import numpy as np
+
+from scipy.spatial import Delaunay
+from skimage.morphology import skeletonize
+from slice_to_point import process_slice_to_point
+
+def save_obj(filename, data):
+    vertices = data.get('vertices', np.array([]))
+    uvs      = data.get('uvs'     , np.array([]))
+    faces    = data.get('faces'   , np.array([]))
+
+    with open(filename, 'w') as f:
+        f.write(f"# Vertices: {len(vertices)}\n")
+        f.write(f"# Faces: {len(faces)}\n")
+
+        for i in range(len(vertices)):
+            vertex = vertices[i]
+
+            f.write('v ')
+            f.write(f"{' '.join(str(round(x, 2)) for x in vertex)}")
+            f.write('\n')
+
+        for uv in uvs:
+            f.write(f"vt {' '.join(str(round(x, 6)) for x in uv)}\n")
+
+        for face in faces:
+            indices = ' '.join(['/'.join(map(str, vertex)) for vertex in face])
+            f.write(f"f {indices}\n")
+
+# python mask_to_obj.py
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Generate mesh from a given mask.')
+    parser.add_argument('--label', type=int, default=1, help='Selected label')
+    parser.add_argument('--d', type=int, default=10, help='Interval between each points or layers')
+    args = parser.parse_args()
+
+    # load mask
+    filename = '10624_02304_02432_mask.nrrd'
+    data, header = nrrd.read(filename)
+    data = np.asarray(data)
+
+    # tifffile.imwrite('test.tif', data * 255)
+
+    label = args.label
+    interval = args.d
+    selected_points_list = []
+    prev_start, prev_end = None, None
+
+    for layer in range(0, data.shape[0], interval):
+        # original
+        image = np.zeros_like(data[layer], dtype=np.uint8)
+        image[data[layer] == label] = 255
+
+        # skeletonize
+        mask = skeletonize(image)
+        skeleton_image = np.zeros_like(image, dtype=np.uint8)
+        skeleton_image[mask] = 255
+
+        if (np.sum(mask) < 50): continue
+
+        # selected points for each slices
+        if (prev_start is None):
+            selected_points, start, end = process_slice_to_point(skeleton_image, interval)
+            prev_start, prev_end = start, prev_end
+        else:
+            selected_points, _, _ = process_slice_to_point(skeleton_image, interval, prev_start, prev_end)
+
+        selected_points = [(x, y, layer) for y, x in selected_points]
+        selected_points_list.append(selected_points)
+
+    points = []
+    for selected_points in selected_points_list:
+        for point in selected_points:
+            points.append(point)
+
+    num_u, num_v = 0, len(selected_points_list)
+    for selected_points in selected_points_list:
+        num_u = max(num_u, len(selected_points))
+
+    uvs = []
+    for index_v, selected_points in enumerate(selected_points_list):
+        for index_u, point in enumerate(selected_points):
+            shift = float(num_u - len(selected_points)) / 2
+            u = (float(index_u) + shift) / float(num_u)
+            v = float(index_v) / float(num_v)
+            uvs.append((round(u, 6), round(v, 6)))
+
+    tri = Delaunay(uvs)
+
+    data = {}
+    data['vertices'] = np.array(points)
+    data['uvs'] = np.array(uvs)
+    data['faces'] = np.array(tri.simplices)
+
+    # filter out the triangle with too large distance
+    triangles = data['vertices'][data['faces']]
+
+    edge_0 = np.linalg.norm(triangles[:, 0] - triangles[:, 1], axis=1)
+    edge_1 = np.linalg.norm(triangles[:, 1] - triangles[:, 2], axis=1)
+    edge_2 = np.linalg.norm(triangles[:, 2] - triangles[:, 0], axis=1)
+
+    max_d = interval * 3
+    mask = (edge_0 < max_d) & (edge_1 < max_d) & (edge_2 < max_d)
+    data['faces'] = data['faces'][mask] 
+
+    # [1, 3, 2] -> [[1, 1, 1], [3, 3, 3], [2, 2, 2]]
+    data['faces'] += 1
+    data['faces'] = np.repeat(data['faces'], 3).reshape(-1, 3, 3)
+
+    save_obj('10624_02304_02432.obj', data)
+
+
+
+
+
