@@ -85,7 +85,7 @@ if __name__ == '__main__':
         else:
             selected_points, _, _ = process_slice_to_point(skeleton_image, interval, prev_start, prev_end)
 
-        selected_points = [(x, y, layer) for y, x in selected_points]
+        selected_points = [(x, y, layer) for x, y in selected_points]
         selected_points_list.append(selected_points)
 
     points = []
@@ -133,6 +133,7 @@ if __name__ == '__main__':
     # switch faces format [1, 3, 2] -> [[1, 1, 1], [3, 3, 3], [2, 2, 2]]
     data['faces'] += 1
     data['faces'] = np.repeat(data['faces'], 3).reshape(-1, 3, 3)
+    data['vertices'] += np.array([2432, 2304, 10624])
 
     save_obj('10624_02304_02432.obj', data)
 
