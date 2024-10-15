@@ -51,15 +51,13 @@ def compute_normals(mesh):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Generate mesh from a given mask.')
     parser.add_argument('--label', type=int, default=1, help='Selected label')
-    parser.add_argument('--d', type=int, default=10, help='Interval between each points or layers')
+    parser.add_argument('--d', type=int, default=5, help='Interval between each points or layers')
     args = parser.parse_args()
 
     # load mask
     filename = '10624_02304_02432_mask.nrrd'
     data, header = nrrd.read(filename)
     data = np.asarray(data)
-
-    # tifffile.imwrite('test.tif', data * 255)
 
     label = args.label
     interval = args.d
@@ -119,7 +117,7 @@ if __name__ == '__main__':
     edge_1 = np.linalg.norm(triangles[:, 1] - triangles[:, 2], axis=1)
     edge_2 = np.linalg.norm(triangles[:, 2] - triangles[:, 0], axis=1)
 
-    max_d = interval * 3
+    max_d = interval * 5
     mask = (edge_0 < max_d) & (edge_1 < max_d) & (edge_2 < max_d)
     data['faces'] = data['faces'][mask] 
 
