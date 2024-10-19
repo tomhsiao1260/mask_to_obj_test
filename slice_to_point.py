@@ -1,3 +1,4 @@
+import os
 import nrrd
 import tifffile
 import argparse
@@ -88,6 +89,32 @@ def process_slice_to_point(skeleton_image, interval, prev_start=None, prev_end=N
     # for point in selected_points: print(point)
     return selected_points, start, end
 
+def main(output_dir, mask_dir, layer, label, interval, plot):
+    # load mask
+    data, header = nrrd.read(os.path.join(output_dir, mask_dir))
+    data = np.asarray(data)
+
+    # original
+    image = np.zeros_like(data[layer], dtype=np.uint8)
+    image[data[layer] == label] = 255
+    tifffile.imwrite(os.path.join(output_dir, 'output.tif'), image)
+
+    # skeletonize
+    mask = skeletonize(image)
+    skeleton_image = np.zeros_like(image)
+    skeleton_image[mask] = 255
+    tifffile.imwrite(os.path.join(output_dir, 'skeleton.tif'), skeleton_image)
+
+    selected_points, _, _ = process_slice_to_point(skeleton_image, interval)
+
+    if (plot):
+        plt.figure(figsize=(8, 8))
+        plt.imshow(image, cmap='gray')
+        x_coords, y_coords = zip(*selected_points)
+        plt.scatter(x_coords, y_coords, c='red', s=int(interval // 3))
+        plt.title('Selected Equidistant Points')
+        plt.show()
+
 # python slice_to_point.py --plot
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Extract a series of points in a sliced mask (equal distance along the mask path).')
@@ -96,35 +123,15 @@ if __name__ == '__main__':
     parser.add_argument('--d', type=int, default=5, help='Interval between each points or layers')
     args = parser.parse_args()
 
-    # load mask
-    filename = '10624_02304_02432_mask.nrrd'
-    data, header = nrrd.read(filename)
-    data = np.asarray(data)
-
-    # original
+    output_dir = '/Users/yao/Desktop/output'
+    mask_dir = '/Users/yao/Desktop/mask_to_obj_test/10624_02304_02432_mask.nrrd'
     layer = 450
     label = args.label
     interval = args.d
+    plot = args.plot
 
-    image = np.zeros_like(data[layer], dtype=np.uint8)
-    image[data[layer] == label] = 255
-    tifffile.imwrite('output.tif', image)
+    main(output_dir, mask_dir, layer, label, interval, plot)
 
-    # skeletonize
-    mask = skeletonize(image)
-    skeleton_image = np.zeros_like(image)
-    skeleton_image[mask] = 255
-    tifffile.imwrite('skeleton.tif', skeleton_image)
-
-    selected_points, _, _ = process_slice_to_point(skeleton_image, args.d)
-
-    if (args.plot):
-        plt.figure(figsize=(8, 8))
-        plt.imshow(image, cmap='gray')
-        x_coords, y_coords = zip(*selected_points)
-        plt.scatter(x_coords, y_coords, c='red', s=int(interval // 3))
-        plt.title('Selected Equidistant Points')
-        plt.show()
 
 
 

@@ -1,3 +1,4 @@
+import os
 import nrrd
 import open3d
 import tifffile
@@ -8,6 +9,9 @@ import open3d as o3d
 from scipy.spatial import Delaunay
 from skimage.morphology import skeletonize
 from slice_to_point import process_slice_to_point
+
+z, y, x = 3513, 1900, 3400
+# z, y, x = 10624, 2304, 2432
 
 def save_obj(filename, data):
     vertices = data.get('vertices', np.array([]))
@@ -47,20 +51,11 @@ def compute_normals(mesh):
     mesh.compute_vertex_normals()
     mesh.compute_triangle_normals()
 
-# python mask_to_obj.py
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Generate mesh from a given mask.')
-    parser.add_argument('--label', type=int, default=1, help='Selected label')
-    parser.add_argument('--d', type=int, default=5, help='Interval between each points or layers')
-    args = parser.parse_args()
-
+def main(output_dir, mask_dir, label, interval):
     # load mask
-    filename = '10624_02304_02432_mask.nrrd'
-    data, header = nrrd.read(filename)
+    data, header = nrrd.read(mask_dir)
     data = np.asarray(data)
 
-    label = args.label
-    interval = args.d
     selected_points_list = []
     prev_start, prev_end = None, None
 
@@ -131,9 +126,24 @@ if __name__ == '__main__':
     # switch faces format [1, 3, 2] -> [[1, 1, 1], [3, 3, 3], [2, 2, 2]]
     data['faces'] += 1
     data['faces'] = np.repeat(data['faces'], 3).reshape(-1, 3, 3)
-    data['vertices'] += np.array([2432, 2304, 10624])
+    data['vertices'] += np.array([x, y, z])
 
-    save_obj('10624_02304_02432.obj', data)
+    save_obj(os.path.join(output_dir, f'{z:05}_{y:05}_{x:05}.obj'), data)
+
+# python mask_to_obj.py
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Generate mesh from a given mask.')
+    parser.add_argument('--label', type=int, default=1, help='Selected label')
+    parser.add_argument('--d', type=int, default=5, help='Interval between each points or layers')
+    args = parser.parse_args()
+
+    output_dir = '/Users/yao/Desktop/output'
+    mask_dir = f'/Users/yao/Desktop/ink-explorer/cubes/{z:05}_{y:05}_{x:05}/{z:05}_{y:05}_{x:05}_mask_1.nrrd'
+    label = args.label
+    interval = args.d
+
+    main(output_dir, mask_dir, label, interval)
+
 
 
 
