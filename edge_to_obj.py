@@ -13,6 +13,8 @@ from scipy.spatial.distance import euclidean
 from scipy.spatial import cKDTree
 from scipy.ndimage import gaussian_filter
 
+# closed shape to .obj (original used for the fossils extraction)
+
 def save_obj(filename, data):
     vertices = data.get('vertices', np.array([]))
     normals  = data.get('normals' , np.array([]))

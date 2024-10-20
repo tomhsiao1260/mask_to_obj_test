@@ -10,9 +10,6 @@ from scipy.spatial import Delaunay
 from skimage.morphology import skeletonize
 from slice_to_point import process_slice_to_point
 
-z, y, x = 3513, 1900, 3400
-# z, y, x = 10624, 2304, 2432
-
 def save_obj(filename, data):
     vertices = data.get('vertices', np.array([]))
     normals  = data.get('normals' , np.array([]))
@@ -51,11 +48,12 @@ def compute_normals(mesh):
     mesh.compute_vertex_normals()
     mesh.compute_triangle_normals()
 
-def main(output_dir, mask_dir, label, interval):
+def main(mask_dir, obj_dir, label, interval, grid_coords):
     # load mask
     data, header = nrrd.read(mask_dir)
     data = np.asarray(data)
 
+    z, y, x = grid_coords
     selected_points_list = []
     prev_start, prev_end = None, None
 
@@ -128,7 +126,8 @@ def main(output_dir, mask_dir, label, interval):
     data['faces'] = np.repeat(data['faces'], 3).reshape(-1, 3, 3)
     data['vertices'] += np.array([x, y, z])
 
-    save_obj(os.path.join(output_dir, f'{z:05}_{y:05}_{x:05}.obj'), data)
+    os.makedirs(os.path.basename(obj_dir), exist_ok=True)
+    save_obj(obj_dir, data)
 
 # python mask_to_obj.py
 if __name__ == '__main__':
@@ -137,12 +136,13 @@ if __name__ == '__main__':
     parser.add_argument('--d', type=int, default=5, help='Interval between each points or layers')
     args = parser.parse_args()
 
-    output_dir = '/Users/yao/Desktop/output'
-    mask_dir = f'/Users/yao/Desktop/ink-explorer/cubes/{z:05}_{y:05}_{x:05}/{z:05}_{y:05}_{x:05}_mask_1.nrrd'
+    z, y, x = 3513, 1900, 3400
+    mask_dir = f'/Users/yao/Desktop/cubes/{z:05}_{y:05}_{x:05}/{z:05}_{y:05}_{x:05}_mask.nrrd'
+    obj_dir = f'/Users/yao/Desktop/cubes/{z:05}_{y:05}_{x:05}/{z:05}_{y:05}_{x:05}.obj'
     label = args.label
     interval = args.d
 
-    main(output_dir, mask_dir, label, interval)
+    main(mask_dir, obj_dir, label, interval, (z, y, x))
 
 
 
