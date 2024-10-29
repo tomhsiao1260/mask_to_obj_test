@@ -48,10 +48,12 @@ def compute_normals(mesh):
     mesh.compute_vertex_normals()
     mesh.compute_triangle_normals()
 
-def main(mask_dir, obj_dir, label, interval, grid_coords):
+def main(mask_dir, obj_dir, label, interval, sliceZ, grid_coords):
     # load mask
     data, header = nrrd.read(mask_dir)
     data = np.asarray(data)
+
+    if not sliceZ: data = data.transpose(2, 1, 0) # slice from x
 
     z, y, x = grid_coords
     selected_points_list = []
@@ -67,7 +69,7 @@ def main(mask_dir, obj_dir, label, interval, grid_coords):
         skeleton_image = np.zeros_like(image, dtype=np.uint8)
         skeleton_image[mask] = 255
 
-        if (np.sum(mask) < 50): continue
+        if (np.sum(mask) < 10): continue
 
         # selected points for each slices
         if (prev_start is None):
@@ -103,6 +105,8 @@ def main(mask_dir, obj_dir, label, interval, grid_coords):
     data['uvs'] = np.array(uvs)
     data['faces'] = np.array(tri.simplices)
 
+    if not sliceZ: data['vertices'] = data['vertices'][:, [2, 1, 0]] # transform back to x, y, z
+
     # filter out the triangle with too large distance
     triangles = data['vertices'][data['faces']]
 
@@ -110,7 +114,7 @@ def main(mask_dir, obj_dir, label, interval, grid_coords):
     edge_1 = np.linalg.norm(triangles[:, 1] - triangles[:, 2], axis=1)
     edge_2 = np.linalg.norm(triangles[:, 2] - triangles[:, 0], axis=1)
 
-    max_d = interval * 5
+    max_d = interval * 10
     mask = (edge_0 < max_d) & (edge_1 < max_d) & (edge_2 < max_d)
     data['faces'] = data['faces'][mask] 
 
@@ -126,7 +130,7 @@ def main(mask_dir, obj_dir, label, interval, grid_coords):
     data['faces'] = np.repeat(data['faces'], 3).reshape(-1, 3, 3)
     data['vertices'] += np.array([x, y, z])
 
-    os.makedirs(os.path.basename(obj_dir), exist_ok=True)
+    os.makedirs(os.path.dirname(obj_dir), exist_ok=True)
     save_obj(obj_dir, data)
 
 # python mask_to_obj.py
@@ -136,13 +140,12 @@ if __name__ == '__main__':
     parser.add_argument('--d', type=int, default=5, help='Interval between each points or layers')
     args = parser.parse_args()
 
-    z, y, x = 3513, 1900, 3400
+    z, y, x = 4281, 1765, 3380
+    label, interval, sliceZ = args.label, args.d, True
     mask_dir = f'/Users/yao/Desktop/cubes/{z:05}_{y:05}_{x:05}/{z:05}_{y:05}_{x:05}_mask.nrrd'
-    obj_dir = f'/Users/yao/Desktop/cubes/{z:05}_{y:05}_{x:05}/{z:05}_{y:05}_{x:05}.obj'
-    label = args.label
-    interval = args.d
+    obj_dir = f'/Users/yao/Desktop/cubes/{z:05}_{y:05}_{x:05}/{z:05}_{y:05}_{x:05}_{label:02}.obj'
 
-    main(mask_dir, obj_dir, label, interval, (z, y, x))
+    main(mask_dir, obj_dir, label, interval, sliceZ, (z, y, x))
 
 
 

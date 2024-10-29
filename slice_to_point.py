@@ -9,6 +9,7 @@ from skimage.morphology import skeletonize
 from scipy.spatial.distance import euclidean
 
 def find_endpoints(skel):
+    # build the connection
     points = np.column_stack(np.where(skel > 0))
     G = nx.Graph()
     for y, x in points:
@@ -24,8 +25,25 @@ def find_endpoints(skel):
                     if skel[sy, sx] > 0:
                         G.add_edge((y, x), (sy, sx))
 
-    endpoints = [node for node, degree in G.degree() if degree == 1]
-    return endpoints, G
+    # remove small groups
+    components = [c for c in nx.connected_components(G) if len(c) >= 20]
+    G_filtered = G.subgraph(nodes for component in components for nodes in component).copy()
+
+    endpoints = [node for node, degree in G_filtered.degree() if degree == 1]
+
+    # only select 2 endpoints with longest distance
+    if len(endpoints) > 2:
+        max_dist = 0
+        main_endpoints = (None, None)
+        for i in range(len(endpoints)):
+            for j in range(i + 1, len(endpoints)):
+                dist = np.linalg.norm(np.array(endpoints[i]) - np.array(endpoints[j]))
+                if dist > max_dist:
+                    max_dist = dist
+                    main_endpoints = (endpoints[i], endpoints[j])
+        endpoints = list(main_endpoints)
+
+    return endpoints, G_filtered
 
 def find_distance(path_coords):
     distances = [0]
@@ -97,22 +115,23 @@ def main(output_dir, mask_dir, layer, label, interval, plot):
     # original
     image = np.zeros_like(data[layer], dtype=np.uint8)
     image[data[layer] == label] = 255
-    tifffile.imwrite(os.path.join(output_dir, 'output.tif'), image)
+    # tifffile.imwrite(os.path.join(output_dir, 'output.tif'), image)
 
     # skeletonize
     mask = skeletonize(image)
     skeleton_image = np.zeros_like(image)
     skeleton_image[mask] = 255
-    tifffile.imwrite(os.path.join(output_dir, 'skeleton.tif'), skeleton_image)
+    # tifffile.imwrite(os.path.join(output_dir, 'skeleton.tif'), skeleton_image)
 
     selected_points, _, _ = process_slice_to_point(skeleton_image, interval)
 
-    if (plot):
+    if (True):
+    # if (plot):
         plt.figure(figsize=(8, 8))
-        plt.imshow(image, cmap='gray')
-        x_coords, y_coords = zip(*selected_points)
-        plt.scatter(x_coords, y_coords, c='red', s=int(interval // 3))
-        plt.title('Selected Equidistant Points')
+        plt.imshow(skeleton_image, cmap='gray')
+        # x_coords, y_coords = zip(*selected_points)
+        # plt.scatter(x_coords, y_coords, c='red', s=int(interval // 3))
+        # plt.title('Selected Equidistant Points')
         plt.show()
 
 # python slice_to_point.py --plot
@@ -123,12 +142,10 @@ if __name__ == '__main__':
     parser.add_argument('--d', type=int, default=5, help='Interval between each points or layers')
     args = parser.parse_args()
 
+    z, y, x, layer = 4281, 1765, 3380, 280
+    label, interval, plot = args.label, args.d, args.plot
     output_dir = '/Users/yao/Desktop/output'
-    mask_dir = '/Users/yao/Desktop/mask_to_obj_test/10624_02304_02432_mask.nrrd'
-    layer = 450
-    label = args.label
-    interval = args.d
-    plot = args.plot
+    mask_dir = f'/Users/yao/Desktop/cubes/{z:05}_{y:05}_{x:05}/{z:05}_{y:05}_{x:05}_mask.nrrd'
 
     main(output_dir, mask_dir, layer, label, interval, plot)
 
